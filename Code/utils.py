@@ -1,26 +1,42 @@
 from scipy.io import wavfile
-from scipy.signal import stft
+from scipy.signal import butter, sosfilt, resample
 import matplotlib.pyplot as plt
 import numpy as np
+from RFA import RFA
 
 def read_audio(file_path):
     sampling_rate, data = wavfile.read(file_path)
     return sampling_rate, data
 
-sampling_rate, data = read_audio("/Users/ciaranwehrli/Desktop/DeepfakeENF/test.wav")
-data_transformed = stft(data,fs=sampling_rate,nperseg=16384)
-fig, axes = plt.subplots(3, 3, figsize=(15, 10)) # Create 3x3 grid
-axes = axes.flatten() # Flatten 2D array of axes to 1D for easy indexing
+def Bandpass(data,fs,band,order):
+    sos = butter(order, band, btype='bandpass', fs=fs, output='sos')
+    return sosfilt(sos,data)
 
-# Loop to plot 9 different windows
-for i in range(9):
-    # Select a window (e.g., window 120, 121, 122...)
-    window_index = i+3
-    
-    axes[i].plot(data_transformed[0], np.abs(data_transformed[2][:, window_index]))
-    axes[i].set_xlim(0, 300) # Zoom to ENF range
-    axes[i].axvline(x=50, color='r', linestyle='--', alpha=0.5) # Swiss 50Hz marker
-    axes[i].set_title(f"Window {window_index}")
 
-plt.tight_layout() # Fixes overlapping labels
+sampling_rate_old, data = read_audio("/Users/ciaranwehrli/Desktop/DeepfakeENF/synthetic_enf_minus20dB.wav")
+
+sampling_rate = 400.0 
+num_samples = int(len(data) * sampling_rate / sampling_rate_old)
+data_downsampled = resample(data, num_samples) #UNDERSTAND DOWNSAMPLE
+data_filtered = Bandpass(data_downsampled, sampling_rate, [95, 105], 6)
+
+
+alpha = 0.25*sampling_rate/(np.max(np.abs(data_filtered)))
+print(alpha)
+eps = 0.01
+tau = 750
+I = 3
+
+ENF_drift = RFA(data_filtered, alpha, tau, eps, 3, 1/sampling_rate)
+
+time_axis = np.linspace(0, len(ENF_drift) / sampling_rate, len(ENF_drift))
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(time_axis, ENF_drift, color='b', label='Extracted ENF')
+ax.axhline(y=100.0, color='r', linestyle='--', alpha=0.7, label='100 Hz Base')
+ax.set_title("ENF Drift")
+ax.set_xlabel("Time")
+ax.set_ylabel("Frequency")
+ax.grid(True)
+ax.legend()
 plt.show()
+
