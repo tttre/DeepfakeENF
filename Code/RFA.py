@@ -3,22 +3,22 @@ import numpy as np
 from numba import njit
 
 @njit
-def Rz(tau, n, z, Nx):
+def angle_Rz(tau, n, angle_z, Nx):
     idx_plus = int(n + tau)
     idx_minus = int(n - tau)
         
     if 0 <= idx_plus < Nx and 0 <= idx_minus < Nx:
-        return z[idx_plus] * np.conj(z[idx_minus])
+        return angle_z[idx_plus] - angle_z[idx_minus]
     return 1.0 + 0j
 
 @njit
-def Kz(tau,n,z,ts,f,Nx,fs):
+def angle_Kz(tau,n,angle_z,ts,f,Nx,fs):
     if np.isnan(f) or abs(f) < 1e-3:
         f = 1e-3 if f >= 0 else -1e-3
     tau_prime = int(tau + np.round(fs/(4*f)))
-    val_Rz = Rz(tau,n,z,Nx)
-    val_Rz_prime = Rz(tau_prime,n,z,Nx)
-    return val_Rz**(ts*f*tau*np.pi*np.sin(2*np.pi*ts*f*tau))*(val_Rz_prime**(ts*f*tau*np.pi*np.cos(2*np.pi*ts*f*tau)))
+    a_Rz = angle_Rz(tau,n,angle_z,Nx)
+    a_Rz_prime = angle_Rz(tau_prime,n,angle_z,Nx)
+    return a_Rz*ts*f*tau*np.pi*np.sin(2*np.pi*ts*f*tau)+a_Rz_prime*(ts*f*tau*np.pi*np.cos(2*np.pi*ts*f*tau))
 
 def weighted_energy_IF(s,fs,window): 
     freqs, times, ft = stft(s, fs=fs, nperseg=int(2*fs), noverlap=int(2*fs)-1)
@@ -39,23 +39,23 @@ def RFA(data,a,t,eps,I,ts):
 
     for i in range(I):
         print("Iteration i: ", i)
-        z = np.exp(1j * 2 * np.pi * ts * a * np.cumsum(x1))
+        angle_z = 2 * np.pi * ts * a * np.cumsum(x1)
 
         s_hat = np.zeros(Nx)
-        for n in range(Nx):      
+        for n in range(Nx):
             f = f0[n]
-            s_hat[n] = (np.sum(np.unwrap([np.angle(Kz(i,n,z,ts,f,Nx,fs)) for i in range(t+1)])))/((t+1)*t*np.pi*a if t > 0 else 1)
+            print(angle_Kz(3,n,angle_z,ts,f,Nx,fs))
+            s_hat[n] = np.sum([angle_Kz(j,n,angle_z,ts,f,Nx,fs) for j in range(t+1)])/((t+1)*t*np.pi*a if t > 0 else 1)
             if n%100 == 0:
                 print("Inner Iteration: ", n)
 
-        f_new = weighted_energy_IF(s_hat, fs,[98,102])
+        f_new = weighted_energy_IF(s_hat, fs,[99.5,100.5])
 
         if (np.sum((f_new-f0)**2))/(np.sum(np.pow(f0,2))) <= eps:
             s = s_hat
             break
 
         s = s_hat
-        x1 = s_hat
         f0 = f_new
 
     return f_new
