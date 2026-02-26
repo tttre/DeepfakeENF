@@ -1,0 +1,12 @@
+## 1. Theory
+We model captured audio as a discrete-time signal $x[n]$ given by $$x[n] = s[n]+W[n]$$where $s[n]$ is the ENF signal and $W[n]$ is i.i.d. zero-mean white Gaussian noise with power $\sigma^2$. Additionally $s[n],W[n]$ are assumed to be independent.
+### 1.1 ENF Signal Representation
+Electric Networks produce frequencies as a harmonic functions, where the Electric Network Frequency (ENF) fluctuates in time, due to interference with for example other loads. These fluctuations are referred to as Instantaneous Frequencies (IF) and are the core to ENF Fingerprint Detection. We model the ENF Signal as $$s[n] = A[n]\cos(2\pi T \sum_{i=0}^{n}f[i]+\phi)$$where $T$ is the sampling rate and $f[n]$ is the targeted frequency drift over time. The frequency drift fluctuates around the generator's frequency, which in Switzerland is 50Hz. The ENF can also be observed at multiple of 50Hz, where it has been shown to be strongest for 100Hz.
+### 1.2 ENF Signal Enhancement
+Since the Electric Network Frequencies are often buried in environmental noise, the essential part of this project is to enhance the ENF signal, i.e. increase the Signal-To-Noise Ratio defined as $\text{SNR} = 10\log \frac{\sum_n s^2[n]}{\sum_n v^2[n]}$ in decibel. In real-world applications, the SNR is usually between -20dB and -60dB.
+
+As a first step, we apply a bandpass $H(z)$ to the audio data $x[n]$ to eliminate environmental noise outside a small range around 100Hz, say we bandlimit the signal to $[-99.5,100.5]$Hz as the ENF variance is around 0.01 Hz, to get rid off all the audio content with significantly higher amplitudes than the ENF.$$y[n] = (x*h)[n]=(s*h)[n]+(W*h)[n] \approx A[n]\cos(2\pi T \sum_{i=0}^{n}f[i]+\phi)+(W*h)[n]$$due to the linearity of the convolution operator. Since we assume $s[n]$ to be entirely contained in the bandpass of $H(z)$, filtering it will leave it unaltered. The white noise $W[n]$ gets filtered by $H(z)$, which alters the Power Spectral Density. We denote $Z[n] = (W*h)[n]$, with Power Spectral Density given by $S_Z(e^{i\Omega}) = S_W(e^{i\Omega})|H(e^{i\Omega})|^2$. Which through IDTFT evaluates to $$\sigma_Z^2 = E(Z[k]^2) = \frac{1}{2\pi}\int_{-\pi}^{\pi} |H(e^{i\Omega})|^2\sigma^2d\Omega = \sigma^2 \left( \int_{-2\pi f_{max}/f_S}^{-2\pi f_{min}/f_S}d\Omega + \int_{2\pi f_{min}/f_S}^{2\pi f_{max}/f_S}d\Omega \right) = 2T(f_{max}-f_{min}) \sigma^2$$where $T = \frac{1}{fs}$ with $f_S$ being the sampling rate. 
+
+This yields $$y[n] = s[n] + z[n]$$as the output to the bandpass.
+### 1.3 ENF Enhancement
+
